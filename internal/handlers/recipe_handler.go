@@ -85,7 +85,49 @@ func CreateRecipe(db *pgxpool.Pool) gin.HandlerFunc {
 	}
 }
 
-func GetRecipe(db *pgxpool.Pool) gin.HandlerFunc {
+func GetListRecipe(db *pgxpool.Pool) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		rows, err := db.Query(c, `
+			SELECT id, name, difficulty, cook_time, image_urls
+			FROM recipes
+			ORDER BY id DESC
+			LIMIT 10
+		`)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch recipes"})
+			return
+		}
+		defer rows.Close()
+
+		var recipes []gin.H
+		for rows.Next() {
+			var id int
+			var name, difficulty string
+			var cookTime int
+			var imageURLs []string
+			if err := rows.Scan(&id, &name, &difficulty, &cookTime, &imageURLs); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to scan recipe data"})
+				return
+			}
+			recipes = append(recipes, gin.H{
+				"id":         id,
+				"name":       name,
+				"difficulty": difficulty,
+				"cook_time":  cookTime,
+				"image_urls": imageURLs,
+			})
+		}
+
+		if err := rows.Err(); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error iterating over recipes"})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{"recipes": recipes})
+	}
+}
+
+func GetRecipeByID(db *pgxpool.Pool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		recipeID, err := strconv.Atoi(c.Param("id"))
 		if err != nil {
@@ -110,6 +152,7 @@ func GetRecipe(db *pgxpool.Pool) gin.HandlerFunc {
 			return
 		}
 
+		// Fetch recipe ingredients
 		rows, err := db.Query(c, `
 			SELECT pantry_id, quantity
 			FROM recipe_ingredient
@@ -130,6 +173,7 @@ func GetRecipe(db *pgxpool.Pool) gin.HandlerFunc {
 			recipe.RecipeIngredientData = append(recipe.RecipeIngredientData, ingredient)
 		}
 
+		// Fetch recipe tools
 		rows, err = db.Query(c, `
 			SELECT pantry_id, quantity
 			FROM recipe_tool
@@ -150,6 +194,7 @@ func GetRecipe(db *pgxpool.Pool) gin.HandlerFunc {
 			recipe.RecipeToolData = append(recipe.RecipeToolData, tool)
 		}
 
+		// Fetch recipe steps
 		rows, err = db.Query(c, `
 			SELECT step_number, title, description
 			FROM steps
@@ -172,129 +217,5 @@ func GetRecipe(db *pgxpool.Pool) gin.HandlerFunc {
 		}
 
 		c.JSON(http.StatusOK, recipe)
-	}
-}
-
-func UpdateRecipe(db *pgxpool.Pool) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		recipeID, err := strconv.Atoi(c.Param("id"))
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid recipe ID"})
-			return
-		}
-
-		var req RecipeRequest
-		if err := c.ShouldBindJSON(&req); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			return
-		}
-
-		tx, err := db.Begin(c)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start transaction"})
-			return
-		}
-		defer tx.Rollback(c)
-
-		_, err = tx.Exec(c, `
-			UPDATE recipes
-			SET name = $1, description = $2, difficulty = $3, prep_time = $4, cook_time = $5,
-				servings = $6, category = $7, sub_categories = $8, image_urls = $9, is_public = $10
-			WHERE id = $11
-		`, req.RecipeData.Name, req.RecipeData.Description, req.RecipeData.Difficulty,
-			req.RecipeData.PrepTime, req.RecipeData.CookTime, req.RecipeData.Servings,
-			req.RecipeData.Category, req.RecipeData.SubCategories, req.RecipeData.ImageURLs,
-			req.RecipeData.IsPublic, recipeID)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update recipe"})
-			return
-		}
-
-		_, err = tx.Exec(c, "DELETE FROM recipe_ingredient WHERE recipe_id = $1", recipeID)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete existing ingredients"})
-			return
-		}
-		_, err = tx.Exec(c, "DELETE FROM recipe_tool WHERE recipe_id = $1", recipeID)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete existing tools"})
-			return
-		}
-		_, err = tx.Exec(c, "DELETE FROM steps WHERE recipe_id = $1", recipeID)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete existing steps"})
-			return
-		}
-
-		if err := insertRecipeIngredients(c, tx, recipeID, req.RecipeIngredientData); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to insert updated ingredients"})
-			return
-		}
-		if err := insertRecipeTools(c, tx, recipeID, req.RecipeToolData); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to insert updated tools"})
-			return
-		}
-		if err := insertSteps(c, tx, recipeID, req.StepsData); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to insert updated steps"})
-			return
-		}
-
-		if err := tx.Commit(c); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit transaction"})
-			return
-		}
-
-		c.JSON(http.StatusOK, gin.H{"message": "Recipe updated successfully"})
-	}
-}
-
-func DeleteRecipe(db *pgxpool.Pool) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		recipeID, err := strconv.Atoi(c.Param("id"))
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid recipe ID"})
-			return
-		}
-
-		tx, err := db.Begin(c)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start transaction"})
-			return
-		}
-		defer tx.Rollback(c)
-
-		_, err = tx.Exec(c, "DELETE FROM recipe_ingredient WHERE recipe_id = $1", recipeID)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete recipe ingredients"})
-			return
-		}
-		_, err = tx.Exec(c, "DELETE FROM recipe_tool WHERE recipe_id = $1", recipeID)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete recipe tools"})
-			return
-		}
-		_, err = tx.Exec(c, "DELETE FROM steps WHERE recipe_id = $1", recipeID)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete recipe steps"})
-			return
-		}
-
-		result, err := tx.Exec(c, "DELETE FROM recipes WHERE id = $1", recipeID)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete recipe"})
-			return
-		}
-
-		if result.RowsAffected() == 0 {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Recipe not found"})
-			return
-		}
-
-		if err := tx.Commit(c); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit transaction"})
-			return
-		}
-
-		c.JSON(http.StatusOK, gin.H{"message": "Recipe deleted successfully"})
 	}
 }

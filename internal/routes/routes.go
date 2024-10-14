@@ -15,7 +15,9 @@ func SetupRoutes(r *gin.Engine, db *pgxpool.Pool) {
 	// Áp dụng middleware xác thực cho nhóm v1
 	v1.Use(middleware.AuthToken())
 	{
-		v1.POST("/recipes", handlers.CreateRecipe(db))
+		v1.POST("/recipe", handlers.CreateRecipe(db))
 		v1.POST("/pantries", handlers.CreatePantries(db))
+		v1.GET("/list-recipe", handlers.GetListRecipe(db))
+		v1.GET("/recipe/:id", handlers.GetRecipeByID(db))
 	}
 }
