@@ -9,10 +9,14 @@ import (
 )
 
 func SetupRoutes(r *gin.Engine, db *pgxpool.Pool) {
-	protected := r.Group("/")
-	protected.Use(middleware.AuthToken())
+	// Tạo nhóm routes v1
+	v1 := r.Group("/v1")
+
+	// Áp dụng middleware xác thực cho nhóm v1
+	v1.Use(middleware.AuthToken())
 	{
-		protected.POST("/recipes", handlers.CreateRecipe(db))
-		protected.GET("/recipes/:id", handlers.GetRecipe(db))
+		v1.POST("/recipes", handlers.CreateRecipe(db))
+		v1.GET("/recipes/:id", handlers.GetRecipe(db))
+		v1.POST("/pantries", handlers.CreatePantries(db))
 	}
 }

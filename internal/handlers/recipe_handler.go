@@ -13,11 +13,19 @@ import (
 
 func CreateRecipe(db *pgxpool.Pool) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var recipe models.Recipe
-		if err := c.ShouldBindJSON(&recipe); err != nil {
+		var requestData struct {
+			RecipeData           models.Recipe             `json:"recipeData"`
+			RecipeIngredientData []models.RecipeIngredient `json:"recipeIngredientData"`
+			RecipeToolData       []models.RecipeTool       `json:"recipeToolData"`
+			StepsData            []models.Steps            `json:"stepsData"`
+		}
+
+		if err := c.ShouldBindJSON(&requestData); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
+
+		recipe := requestData.RecipeData
 
 		userID, exists := c.Get("user_id")
 		if !exists {
@@ -29,11 +37,20 @@ func CreateRecipe(db *pgxpool.Pool) gin.HandlerFunc {
 		recipe.CreatedAt = time.Now()
 		recipe.UpdatedAt = time.Now()
 
+		// Start a transaction
+		tx, err := db.Begin(c)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start transaction"})
+			return
+		}
+		defer tx.Rollback(c)
+
+		// Create recipe
 		query := `INSERT INTO recipes (user_id, name, description, difficulty, prep_time, cook_time, servings, category, sub_categories, image_urls, is_public, created_at, updated_at)
 				  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 				  RETURNING id`
 
-		err := db.QueryRow(c, query,
+		err = tx.QueryRow(c, query,
 			recipe.UserID, recipe.Name, recipe.Description, recipe.Difficulty,
 			recipe.PrepTime, recipe.CookTime, recipe.Servings, recipe.Category,
 			recipe.SubCategories, recipe.ImageURLs, recipe.IsPublic,
@@ -41,6 +58,39 @@ func CreateRecipe(db *pgxpool.Pool) gin.HandlerFunc {
 
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create recipe"})
+			return
+		}
+
+		// Create recipe_ingredient
+		for _, ingredient := range requestData.RecipeIngredientData {
+			ingredient.RecipeID = recipe.ID
+			if err := CreateRecipeIngredient(tx, c, ingredient); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create recipe ingredient"})
+				return
+			}
+		}
+
+		// Create recipe_tool
+		// for _, tool := range requestData.RecipeToolData {
+		// 	tool.RecipeID = recipe.ID
+		// 	if err := CreateRecipeTool(tx, c, tool); err != nil {
+		// 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create recipe tool"})
+		// 		return
+		// 	}
+		// }
+
+		// Create steps
+		// for _, step := range requestData.StepsData {
+		// 	step.RecipeID = recipe.ID
+		// 	if err := CreateStep(tx, c, step); err != nil {
+		// 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create recipe step"})
+		// 		return
+		// 	}
+		// }
+
+		// Commit the transaction
+		if err := tx.Commit(c); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit transaction"})
 			return
 		}
 
