@@ -20,11 +20,6 @@ func CreateRecipe(db *pgxpool.Pool) gin.HandlerFunc {
 			StepsData            []models.Steps            `json:"stepsData"`
 		}
 
-		if err := c.ShouldBindJSON(&requestData); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			return
-		}
-
 		recipe := requestData.RecipeData
 
 		userID, exists := c.Get("user_id")

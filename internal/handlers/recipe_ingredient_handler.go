@@ -9,7 +9,7 @@ import (
 
 func CreateRecipeIngredient(tx pgx.Tx, c *gin.Context, ingredient models.RecipeIngredient) error {
 	query := `INSERT INTO recipe_ingredients (recipe_id, pantry_id, quantity)
-			  VALUES ($1, $2, $3)`
+              VALUES ($1, $2, $3)`
 
 	_, err := tx.Exec(c, query, ingredient.RecipeID, ingredient.PantryID, ingredient.Quantity)
 	return err

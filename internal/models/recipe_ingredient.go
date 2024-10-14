@@ -6,3 +6,4 @@ type RecipeIngredient struct {
 	PantryID int `json:"pantry_id"`
 	Quantity int `json:"quantity"`
 }
+
