@@ -1,8 +1,8 @@
 package routes
 
 import (
-	"pleno-recipe-service/internal/handlers"
-	"pleno-recipe-service/internal/middleware"
+	"foocipe-recipe-service/internal/handlers"
+	"foocipe-recipe-service/internal/middleware"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"

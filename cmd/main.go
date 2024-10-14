@@ -1,10 +1,10 @@
 package main
 
 import (
+	"foocipe-recipe-service/internal/config"
+	"foocipe-recipe-service/internal/database"
+	"foocipe-recipe-service/internal/routes"
 	"log"
-	"pleno-recipe-service/internal/config"
-	"pleno-recipe-service/internal/database"
-	"pleno-recipe-service/internal/routes"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
