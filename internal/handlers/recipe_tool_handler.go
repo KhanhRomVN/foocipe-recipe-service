@@ -7,8 +7,9 @@ import (
 )
 
 type RecipeToolData struct {
-	PantryID int `json:"pantry_id"`
-	Quantity int `json:"quantity"`
+	PantryID   int    `json:"pantry_id"`
+	Quantity   string `json:"quantity"`
+	PantryName string `json:"pantry_name"`
 }
 
 func insertRecipeTools(ctx context.Context, tx pgx.Tx, recipeID int, tools []RecipeToolData) error {

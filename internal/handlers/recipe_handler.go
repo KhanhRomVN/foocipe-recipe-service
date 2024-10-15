@@ -163,9 +163,10 @@ func GetRecipeByID(db *pgxpool.Pool) gin.HandlerFunc {
 
 		// Fetch recipe ingredients
 		rows, err := db.Query(c, `
-			SELECT pantry_id, quantity
-			FROM recipe_ingredient
-			WHERE recipe_id = $1
+			SELECT ri.pantry_id, ri.quantity, p.name
+			FROM recipe_ingredient ri
+			JOIN pantries p ON ri.pantry_id = p.id
+			WHERE ri.recipe_id = $1
 		`, recipeID)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch recipe ingredients"})
@@ -175,7 +176,7 @@ func GetRecipeByID(db *pgxpool.Pool) gin.HandlerFunc {
 
 		for rows.Next() {
 			var ingredient RecipeIngredientData
-			if err := rows.Scan(&ingredient.PantryID, &ingredient.Quantity); err != nil {
+			if err := rows.Scan(&ingredient.PantryID, &ingredient.Quantity, &ingredient.PantryName); err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to scan recipe ingredients"})
 				return
 			}
@@ -184,9 +185,10 @@ func GetRecipeByID(db *pgxpool.Pool) gin.HandlerFunc {
 
 		// Fetch recipe tools
 		rows, err = db.Query(c, `
-			SELECT pantry_id, quantity
-			FROM recipe_tool
-			WHERE recipe_id = $1
+			SELECT rt.pantry_id, rt.quantity, p.name
+			FROM recipe_tool rt
+			JOIN pantries p ON rt.pantry_id = p.id
+			WHERE rt.recipe_id = $1
 		`, recipeID)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch recipe tools"})
@@ -196,7 +198,7 @@ func GetRecipeByID(db *pgxpool.Pool) gin.HandlerFunc {
 
 		for rows.Next() {
 			var tool RecipeToolData
-			if err := rows.Scan(&tool.PantryID, &tool.Quantity); err != nil {
+			if err := rows.Scan(&tool.PantryID, &tool.Quantity, &tool.PantryName); err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to scan recipe tools"})
 				return
 			}
