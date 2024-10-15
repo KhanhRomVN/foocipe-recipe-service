@@ -67,3 +67,12 @@ CREATE TABLE steps (
     title VARCHAR(255) NOT NULL,
     description TEXT
 );
+
+CREATE TABLE recipe_rating (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    recipe_id INTEGER NOT NULL,
+    rating DECIMAL(3, 2) NOT NULL,
+    comment TEXT,
+    CONSTRAINT rating_check CHECK (rating >= 0 AND rating <= 5)
+);

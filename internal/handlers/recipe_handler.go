@@ -109,12 +109,21 @@ func GetListRecipe(db *pgxpool.Pool) gin.HandlerFunc {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to scan recipe data"})
 				return
 			}
+
+			// Get average rating
+			avgRating, err := GetAverageRating(db, id)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get average rating"})
+				return
+			}
+
 			recipes = append(recipes, gin.H{
-				"id":         id,
-				"name":       name,
-				"difficulty": difficulty,
-				"cook_time":  cookTime,
-				"image_urls": imageURLs,
+				"id":             id,
+				"name":           name,
+				"difficulty":     difficulty,
+				"cook_time":      cookTime,
+				"image_urls":     imageURLs,
+				"average_rating": avgRating,
 			})
 		}
 
