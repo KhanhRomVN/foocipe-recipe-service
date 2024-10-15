@@ -19,5 +19,6 @@ func SetupRoutes(r *gin.Engine, db *pgxpool.Pool) {
 		v1.POST("/pantries", handlers.CreatePantry(db))
 		v1.GET("/list-recipe", handlers.GetListRecipe(db))
 		v1.GET("/recipe/:id", handlers.GetRecipeByID(db))
+		v1.GET("/pantry/:id", handlers.GetPantryByID(db))
 	}
 }

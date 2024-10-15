@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"context"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -49,12 +48,31 @@ func CreatePantry(db *pgxpool.Pool) gin.HandlerFunc {
 	}
 }
 
-func GetPantryByID(db *pgxpool.Pool, id int) (Pantry, error) {
-	var pantry Pantry
-	err := db.QueryRow(context.Background(), `
-		SELECT id, name, category, sub_categories, description, image_urls
-		FROM pantries
-		WHERE id = $1
-	`, id).Scan(&pantry.ID, &pantry.Name, &pantry.Category, &pantry.SubCategories, &pantry.Description, &pantry.ImageURLs)
-	return pantry, err
+func GetPantryByID(db *pgxpool.Pool) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id := c.Param("id")
+
+		var pantry Pantry
+		query := `
+			SELECT id, name, category, sub_categories, description, image_urls
+			FROM pantries
+			WHERE id = $1
+		`
+
+		err := db.QueryRow(c, query, id).Scan(
+			&pantry.ID,
+			&pantry.Name,
+			&pantry.Category,
+			&pantry.SubCategories,
+			&pantry.Description,
+			&pantry.ImageURLs,
+		)
+
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Pantry not found"})
+			return
+		}
+
+		c.JSON(http.StatusOK, pantry)
+	}
 }
