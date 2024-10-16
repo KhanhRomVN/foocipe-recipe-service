@@ -390,3 +390,105 @@ func ESSearchRecipesByName(db *pgxpool.Pool) gin.HandlerFunc {
 		})
 	}
 }
+
+func ESSearchRecipesByIngredient(db *pgxpool.Pool) gin.HandlerFunc {
+	esClient := config.GetESClientRecipes()
+	return func(c *gin.Context) {
+		var reqBody struct {
+			Ingredients []int `json:"ingredients" binding:"required"`
+		}
+
+		if err := c.ShouldBindJSON(&reqBody); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+			return
+		}
+
+		if len(reqBody.Ingredients) == 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "At least one ingredient ID is required"})
+			return
+		}
+
+		// Chuyển đổi []int thành []interface{} cho Elasticsearch query
+		ingredientIDs := make([]interface{}, len(reqBody.Ingredients))
+		for i, id := range reqBody.Ingredients {
+			ingredientIDs[i] = id
+		}
+
+		// Prepare the search request
+		var buf bytes.Buffer
+		searchQuery := map[string]interface{}{
+			"query": map[string]interface{}{
+				"bool": map[string]interface{}{
+					"must": []map[string]interface{}{
+						{
+							"terms": map[string]interface{}{
+								"ingredients.pantry_id": ingredientIDs,
+							},
+						},
+					},
+				},
+			},
+		}
+		if err := json.NewEncoder(&buf).Encode(searchQuery); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to encode search query"})
+			return
+		}
+
+		// Perform the search request
+		res, err := esClient.Search(
+			esClient.Search.WithContext(c.Request.Context()),
+			esClient.Search.WithIndex("recipes"),
+			esClient.Search.WithBody(&buf),
+			esClient.Search.WithTrackTotalHits(true),
+			esClient.Search.WithPretty(),
+		)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to execute search"})
+			return
+		}
+		defer res.Body.Close()
+
+		if res.IsError() {
+			var e map[string]interface{}
+			if err := json.NewDecoder(res.Body).Decode(&e); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to parse the response body"})
+				return
+			}
+			c.JSON(http.StatusInternalServerError, gin.H{"error": e})
+			return
+		}
+
+		var r map[string]interface{}
+		if err := json.NewDecoder(res.Body).Decode(&r); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to parse the response body"})
+			return
+		}
+
+		// Extract and format the search results
+		hits := r["hits"].(map[string]interface{})["hits"].([]interface{})
+		recipes := make([]gin.H, len(hits))
+
+		for i, hit := range hits {
+			source := hit.(map[string]interface{})["_source"].(map[string]interface{})
+			recipes[i] = gin.H{
+				"id":             source["id"],
+				"name":           source["name"],
+				"description":    source["description"],
+				"difficulty":     source["difficulty"],
+				"prep_time":      source["prep_time"],
+				"cook_time":      source["cook_time"],
+				"servings":       source["servings"],
+				"category":       source["category"],
+				"sub_categories": source["sub_categories"],
+				"image_urls":     source["image_urls"],
+				"is_public":      source["is_public"],
+				"ingredients":    source["ingredients"],
+			}
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"total":   r["hits"].(map[string]interface{})["total"].(map[string]interface{})["value"],
+			"recipes": recipes,
+		})
+	}
+}
