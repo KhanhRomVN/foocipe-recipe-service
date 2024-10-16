@@ -16,9 +16,11 @@ func SetupRoutes(r *gin.Engine, db *pgxpool.Pool) {
 	v1.Use(middleware.AuthToken())
 	{
 		v1.POST("/recipe", handlers.CreateRecipe(db))
-		v1.POST("/pantries", handlers.CreatePantry(db))
+		v1.POST("/pantry", handlers.CreatePantry(db))
+		v1.POST("/list-pantry", handlers.CreateListPantry(db))
 		v1.GET("/list-recipe", handlers.GetListRecipe(db))
 		v1.GET("/recipe/:id", handlers.GetRecipeByID(db))
 		v1.GET("/pantry/:id", handlers.GetPantryByID(db))
+		v1.GET("/pantries/search", handlers.SearchPantries(db))
 	}
 }

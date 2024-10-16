@@ -17,6 +17,12 @@ func main() {
 		log.Fatalf("Failed to load config: %v", err)
 	}
 
+	// Initialize Elasticsearch
+	err = config.InitElasticsearch()
+	if err != nil {
+		log.Fatalf("Failed to initialize Elasticsearch: %v", err)
+	}
+
 	// Initialize database
 	db, err := database.InitDB(cfg.DatabaseURL)
 	if err != nil {
