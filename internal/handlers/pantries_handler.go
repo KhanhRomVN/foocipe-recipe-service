@@ -157,7 +157,7 @@ func GetPantryByID(db *pgxpool.Pool, pantryID int) func(*gin.Context) (Pantry, e
 	}
 }
 
-func SearchPantries(db *pgxpool.Pool) gin.HandlerFunc {
+func ESSearchPantries(db *pgxpool.Pool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		name := c.Query("name")
 
