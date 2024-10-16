@@ -13,7 +13,6 @@ type Config struct {
 }
 
 func Load() (*Config, error) {
-	// Attempt to load .env file, but don't return an error if it doesn't exist
 	_ = godotenv.Load()
 
 	return &Config{

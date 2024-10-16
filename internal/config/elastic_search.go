@@ -17,10 +17,7 @@ var (
 // InitElasticsearch initializes the Elasticsearch clients
 func InitElasticsearch() error {
 	// Load .env file
-	err := godotenv.Load()
-	if err != nil {
-		return fmt.Errorf("error loading .env file: %w", err)
-	}
+	_ = godotenv.Load()
 
 	// Get Elasticsearch configuration from environment variables
 	elasticEndpoint := os.Getenv("ELASTIC_SEARCH_ENDPOINT")
