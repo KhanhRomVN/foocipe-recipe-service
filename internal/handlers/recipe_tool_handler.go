@@ -8,7 +8,7 @@ import (
 
 type RecipeToolData struct {
 	PantryID   int    `json:"pantry_id"`
-	Quantity   string `json:"quantity"`
+	Quantity   int    `json:"quantity"`
 	PantryName string `json:"pantry_name"`
 }
 

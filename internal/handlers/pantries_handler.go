@@ -49,7 +49,7 @@ func CreatePantry(db *pgxpool.Pool) gin.HandlerFunc {
 		}
 
 		// Add the pantry to Elasticsearch
-		esClient := config.GetESClient()
+		esClient := config.GetESClientPantries()
 		pantry.ID = id
 		pantryJSON, err := json.Marshal(pantry)
 		if err != nil {
@@ -80,7 +80,7 @@ func CreateListPantry(db *pgxpool.Pool) gin.HandlerFunc {
 		}
 
 		createdIDs := make([]int, 0, len(pantries))
-		esClient := config.GetESClient()
+		esClient := config.GetESClientPantries()
 
 		for _, pantry := range pantries {
 			query := `
@@ -131,10 +131,8 @@ func CreateListPantry(db *pgxpool.Pool) gin.HandlerFunc {
 	}
 }
 
-func GetPantryByID(db *pgxpool.Pool) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		id := c.Param("id")
-
+func GetPantryByID(db *pgxpool.Pool, pantryID int) func(*gin.Context) (Pantry, error) {
+	return func(c *gin.Context) (Pantry, error) {
 		var pantry Pantry
 		query := `
 			SELECT id, name, category, sub_categories, description, image_urls
@@ -142,7 +140,7 @@ func GetPantryByID(db *pgxpool.Pool) gin.HandlerFunc {
 			WHERE id = $1
 		`
 
-		err := db.QueryRow(c, query, id).Scan(
+		err := db.QueryRow(c, query, pantryID).Scan(
 			&pantry.ID,
 			&pantry.Name,
 			&pantry.Category,
@@ -152,11 +150,10 @@ func GetPantryByID(db *pgxpool.Pool) gin.HandlerFunc {
 		)
 
 		if err != nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Pantry not found"})
-			return
+			return Pantry{}, err
 		}
 
-		c.JSON(http.StatusOK, pantry)
+		return pantry, nil
 	}
 }
 
@@ -169,7 +166,7 @@ func SearchPantries(db *pgxpool.Pool) gin.HandlerFunc {
 			return
 		}
 
-		esClient := config.GetESClient()
+		esClient := config.GetESClientPantries()
 		searchResult, err := esClient.Search(
 			esClient.Search.WithIndex("pantries"),
 			esClient.Search.WithBody(bytes.NewReader([]byte(`{"query": {"match": {"name": "`+name+`"}}}`))),

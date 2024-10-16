@@ -1,9 +1,13 @@
 package handlers
 
 import (
+	"bytes"
+	"encoding/json"
+	"foocipe-recipe-service/internal/config"
 	"net/http"
 	"strconv"
 
+	"github.com/elastic/go-elasticsearch/v8"
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -27,6 +31,7 @@ type RecipeRequest struct {
 }
 
 func CreateRecipe(db *pgxpool.Pool) gin.HandlerFunc {
+	esClient := config.GetESClientRecipes()
 	return func(c *gin.Context) {
 		var req RecipeRequest
 		if err := c.ShouldBindJSON(&req); err != nil {
@@ -81,8 +86,82 @@ func CreateRecipe(db *pgxpool.Pool) gin.HandlerFunc {
 			return
 		}
 
-		c.JSON(http.StatusCreated, gin.H{"message": "Recipe created successfully", "recipe_id": recipeID})
+		// Index the recipe in Elasticsearch
+		if err := indexRecipeInElasticsearch(c, db, esClient, recipeID, req); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to index recipe in Elasticsearch"})
+			return
+		}
+
+		c.JSON(http.StatusCreated, gin.H{"message": "Recipe created successfully and indexed in Elasticsearch", "recipe_id": recipeID})
 	}
+}
+
+func indexRecipeInElasticsearch(c *gin.Context, db *pgxpool.Pool, esClient *elasticsearch.Client, recipeID int, req RecipeRequest) error {
+	// Prepare the recipe data for Elasticsearch
+	esRecipe := map[string]interface{}{
+		"id":             recipeID,
+		"name":           req.RecipeData.Name,
+		"description":    req.RecipeData.Description,
+		"difficulty":     req.RecipeData.Difficulty,
+		"prep_time":      req.RecipeData.PrepTime,
+		"cook_time":      req.RecipeData.CookTime,
+		"servings":       req.RecipeData.Servings,
+		"category":       req.RecipeData.Category,
+		"sub_categories": req.RecipeData.SubCategories,
+		"image_urls":     req.RecipeData.ImageURLs,
+		"is_public":      req.RecipeData.IsPublic,
+	}
+
+	// Process recipe ingredients
+	ingredients := make([]map[string]interface{}, 0)
+	for _, ing := range req.RecipeIngredientData {
+		pantry, err := GetPantryByID(db, ing.PantryID)(c)
+		if err != nil {
+			return err
+		}
+		ingredients = append(ingredients, map[string]interface{}{
+			"pantry_id":   ing.PantryID,
+			"quantity":    ing.Quantity,
+			"pantry_name": pantry.Name,
+		})
+	}
+	esRecipe["ingredients"] = ingredients
+
+	// Process recipe tools
+	tools := make([]map[string]interface{}, 0)
+	for _, tool := range req.RecipeToolData {
+		pantry, err := GetPantryByID(db, tool.PantryID)(c)
+		if err != nil {
+			return err
+		}
+		tools = append(tools, map[string]interface{}{
+			"pantry_id":   tool.PantryID,
+			"quantity":    tool.Quantity,
+			"pantry_name": pantry.Name,
+		})
+	}
+	esRecipe["tools"] = tools
+
+	// Add steps data
+	esRecipe["steps"] = req.StepsData
+
+	// Convert the recipe data to JSON
+	recipeJSON, err := json.Marshal(esRecipe)
+	if err != nil {
+		return err
+	}
+
+	// Index the recipe in Elasticsearch
+	_, err = esClient.Index(
+		"recipes",
+		bytes.NewReader(recipeJSON),
+		esClient.Index.WithDocumentID(strconv.Itoa(recipeID)),
+	)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func GetListRecipe(db *pgxpool.Pool) gin.HandlerFunc {
