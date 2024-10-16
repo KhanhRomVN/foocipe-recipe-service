@@ -17,6 +17,7 @@ type Pantry struct {
 	Category      string   `json:"category" binding:"required"`
 	SubCategories []string `json:"sub_categories"`
 	Description   string   `json:"description"`
+	Unit          string   `json:"unit"`
 	ImageURLs     []string `json:"image_urls"`
 }
 
