@@ -69,14 +69,14 @@ CREATE TABLE recipes (
 CREATE TABLE recipe_ingredient (
     id SERIAL PRIMARY KEY,
     recipe_id INTEGER NOT NULL,
-    pantry_id INTEGER NOT NULL,
+    ingredient_id INTEGER NOT NULL,
     quantity INTEGER NOT NULL
 );
 
 CREATE TABLE recipe_tool (
     id SERIAL PRIMARY KEY,
     recipe_id INTEGER NOT NULL,
-    pantry_id INTEGER NOT NULL,
+    tool_id INTEGER NOT NULL,
     quantity INTEGER NOT NULL
 );
 

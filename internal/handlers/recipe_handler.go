@@ -66,16 +66,19 @@ func CreateRecipe(db *pgxpool.Pool) gin.HandlerFunc {
 			return
 		}
 
+		// insert data to table recipe_ingredients
 		if err := insertRecipeIngredients(c, tx, recipeID, req.RecipeIngredientData); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to insert recipe ingredients"})
 			return
 		}
 
+		// insert data to table recipe_tools
 		if err := insertRecipeTools(c, tx, recipeID, req.RecipeToolData); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to insert recipe tools"})
 			return
 		}
 
+		// insert data to table steps
 		if err := insertSteps(c, tx, recipeID, req.StepsData); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to insert recipe steps"})
 			return
@@ -115,14 +118,14 @@ func indexRecipeInElasticsearch(c *gin.Context, db *pgxpool.Pool, esClient *elas
 	// Process recipe ingredients
 	ingredients := make([]map[string]interface{}, 0)
 	for _, ing := range req.RecipeIngredientData {
-		pantry, err := GetIngredientByID(db, ing.PantryID)(c)
+		ingredient, err := GetIngredientByID(db, ing.IngredientID)(c)
 		if err != nil {
 			return err
 		}
 		ingredients = append(ingredients, map[string]interface{}{
-			"pantry_id":   ing.PantryID,
-			"quantity":    ing.Quantity,
-			"pantry_name": pantry.Name,
+			"ingredient_id":   ing.IngredientID,
+			"quantity":        ing.Quantity,
+			"ingredient_name": ingredient.Name,
 		})
 	}
 	esRecipe["ingredients"] = ingredients
@@ -130,14 +133,14 @@ func indexRecipeInElasticsearch(c *gin.Context, db *pgxpool.Pool, esClient *elas
 	// Process recipe tools
 	tools := make([]map[string]interface{}, 0)
 	for _, tool := range req.RecipeToolData {
-		pantry, err := GetToolByID(db, tool.PantryID)(c)
+		toolData, err := GetToolByID(db, tool.ToolID)(c)
 		if err != nil {
 			return err
 		}
 		tools = append(tools, map[string]interface{}{
-			"pantry_id":   tool.PantryID,
-			"quantity":    tool.Quantity,
-			"pantry_name": pantry.Name,
+			"tool_id":   tool.ToolID,
+			"quantity":  tool.Quantity,
+			"tool_name": toolData.Name,
 		})
 	}
 	esRecipe["tools"] = tools
@@ -242,9 +245,9 @@ func GetRecipeByID(db *pgxpool.Pool) gin.HandlerFunc {
 
 		// Fetch recipe ingredients
 		rows, err := db.Query(c, `
-			SELECT ri.pantry_id, ri.quantity, p.name
+			SELECT ri.ingredient_id, ri.quantity, i.name
 			FROM recipe_ingredient ri
-			JOIN pantries p ON ri.pantry_id = p.id
+			JOIN ingredients i ON ri.ingredient_id = i.id
 			WHERE ri.recipe_id = $1
 		`, recipeID)
 		if err != nil {
@@ -255,7 +258,7 @@ func GetRecipeByID(db *pgxpool.Pool) gin.HandlerFunc {
 
 		for rows.Next() {
 			var ingredient RecipeIngredientData
-			if err := rows.Scan(&ingredient.PantryID, &ingredient.Quantity, &ingredient.PantryName); err != nil {
+			if err := rows.Scan(&ingredient.IngredientID, &ingredient.Quantity, &ingredient.IngredientName); err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to scan recipe ingredients"})
 				return
 			}
@@ -264,9 +267,9 @@ func GetRecipeByID(db *pgxpool.Pool) gin.HandlerFunc {
 
 		// Fetch recipe tools
 		rows, err = db.Query(c, `
-			SELECT rt.pantry_id, rt.quantity, p.name
+			SELECT rt.tool_id, rt.quantity, t.name
 			FROM recipe_tool rt
-			JOIN pantries p ON rt.pantry_id = p.id
+			JOIN tools t ON rt.tool_id = t.id
 			WHERE rt.recipe_id = $1
 		`, recipeID)
 		if err != nil {
@@ -277,7 +280,29 @@ func GetRecipeByID(db *pgxpool.Pool) gin.HandlerFunc {
 
 		for rows.Next() {
 			var tool RecipeToolData
-			if err := rows.Scan(&tool.PantryID, &tool.Quantity, &tool.PantryName); err != nil {
+			if err := rows.Scan(&tool.ToolID, &tool.Quantity, &tool.ToolName); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to scan recipe tools"})
+				return
+			}
+			recipe.RecipeToolData = append(recipe.RecipeToolData, tool)
+		}
+
+		// Fetch recipe steps
+		rows, err = db.Query(c, `
+			SELECT rt.tool_id, rt.quantity, t.name
+			FROM recipe_tool rt
+			JOIN tools t ON rt.tool_id = t.id
+			WHERE rt.recipe_id = $1
+		`, recipeID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch recipe tools"})
+			return
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var tool RecipeToolData
+			if err := rows.Scan(&tool.ToolID, &tool.Quantity, &tool.ToolName); err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to scan recipe tools"})
 				return
 			}
@@ -408,7 +433,7 @@ func ESSearchRecipesByIngredient(db *pgxpool.Pool) gin.HandlerFunc {
 			return
 		}
 
-		// Chuyển đổi []int thành []interface{} cho Elasticsearch query
+		// Convert []int to []interface{} for Elasticsearch query
 		ingredientIDs := make([]interface{}, len(reqBody.Ingredients))
 		for i, id := range reqBody.Ingredients {
 			ingredientIDs[i] = id
@@ -422,7 +447,7 @@ func ESSearchRecipesByIngredient(db *pgxpool.Pool) gin.HandlerFunc {
 					"must": []map[string]interface{}{
 						{
 							"terms": map[string]interface{}{
-								"ingredients.pantry_id": ingredientIDs,
+								"ingredients.ingredient_id": ingredientIDs,
 							},
 						},
 					},

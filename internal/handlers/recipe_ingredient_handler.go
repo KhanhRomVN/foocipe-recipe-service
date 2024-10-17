@@ -7,17 +7,17 @@ import (
 )
 
 type RecipeIngredientData struct {
-	PantryID   int    `json:"pantry_id"`
-	Quantity   int    `json:"quantity"`
-	PantryName string `json:"pantry_name"`
+	IngredientID   int    `json:"ingredient_id"`
+	Quantity       int    `json:"quantity"`
+	IngredientName string `json:"ingredient_name,omitempty"`
 }
 
 func insertRecipeIngredients(ctx context.Context, tx pgx.Tx, recipeID int, ingredients []RecipeIngredientData) error {
 	for _, ingredient := range ingredients {
 		_, err := tx.Exec(ctx, `
-			INSERT INTO recipe_ingredient (recipe_id, pantry_id, quantity)
-			VALUES ($1, $2, $3)
-		`, recipeID, ingredient.PantryID, ingredient.Quantity)
+            INSERT INTO recipe_ingredient (recipe_id, ingredient_id, quantity)
+            VALUES ($1, $2, $3)
+        `, recipeID, ingredient.IngredientID, ingredient.Quantity)
 		if err != nil {
 			return err
 		}

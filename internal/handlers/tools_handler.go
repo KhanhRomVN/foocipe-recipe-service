@@ -30,10 +30,10 @@ func CreateTool(db *pgxpool.Pool) gin.HandlerFunc {
 		}
 
 		query := `
-			INSERT INTO ingredients (name, category, sub_categories, description, image_urls)
-			VALUES ($1, $2, $3, $4, $5)
-			RETURNING id
-		`
+            INSERT INTO tools (name, category, sub_categories, description, image_urls)
+            VALUES ($1, $2, $3, $4, $5)
+            RETURNING id
+        `
 
 		var id int
 		err := db.QueryRow(c, query,
@@ -180,7 +180,7 @@ func ESSearchTools(db *pgxpool.Pool) gin.HandlerFunc {
 		var result struct {
 			Hits struct {
 				Hits []struct {
-					Source Ingredients `json:"_source"`
+					Source Tools `json:"_source"`
 				} `json:"hits"`
 			} `json:"hits"`
 		}
