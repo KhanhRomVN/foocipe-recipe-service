@@ -13,6 +13,7 @@ var (
 	ESClientRecipes     *elasticsearch.Client
 	ESClientIngredients *elasticsearch.Client
 	ESClientTools       *elasticsearch.Client
+	ESClientProducts    *elasticsearch.Client
 )
 
 // InitElasticsearch initializes the Elasticsearch clients
@@ -25,7 +26,7 @@ func InitElasticsearch() error {
 	elasticAPIKeyRecipes := os.Getenv("ELASTIC_SEARCH_API_KEY_RECIPES")
 	elasticAPIKeyIngredients := os.Getenv("ELASTIC_SEARCH_API_KEY_INGREDIENTS")
 	elasticAPIKeyTools := os.Getenv("ELASTIC_SEARCH_API_KEY_TOOLS")
-
+	elasticAPIKeyProducts := os.Getenv("ELASTIC_SEARCH_API_KEY_PRODUCTS")
 	// Create the Elasticsearch client configuration for ingredients
 	cfgIngredients := elasticsearch.Config{
 		Addresses: []string{elasticEndpoint},
@@ -44,6 +45,12 @@ func InitElasticsearch() error {
 		APIKey:    elasticAPIKeyRecipes,
 	}
 
+	// Create the Elasticsearch client configuration for products
+	cfgProducts := elasticsearch.Config{
+		Addresses: []string{elasticEndpoint},
+		APIKey:    elasticAPIKeyProducts,
+	}
+
 	// Create the Elasticsearch clients
 	clientIngredients, err := elasticsearch.NewClient(cfgIngredients)
 	if err != nil {
@@ -59,6 +66,11 @@ func InitElasticsearch() error {
 	clientRecipes, err := elasticsearch.NewClient(cfgRecipes)
 	if err != nil {
 		return fmt.Errorf("error creating the Elasticsearch client for recipes: %w", err)
+	}
+
+	clientProducts, err := elasticsearch.NewClient(cfgProducts)
+	if err != nil {
+		return fmt.Errorf("error creating the Elasticsearch client for products: %w", err)
 	}
 
 	// Check if the connections are successful
@@ -82,10 +94,18 @@ func InitElasticsearch() error {
 	}
 	defer resRecipes.Body.Close()
 
+	// Check if the connections are successful
+	resProducts, err := clientProducts.Info()
+	if err != nil {
+		return fmt.Errorf("error connecting to Elasticsearch for products: %w", err)
+	}
+	defer resProducts.Body.Close()
+
 	ESClientIngredients = clientIngredients
 	ESClientTools = clientTools
 	ESClientRecipes = clientRecipes
-	log.Println("Connected to Elasticsearch successfully for both ingredients, tools and recipes!")
+	ESClientProducts = clientProducts
+	log.Println("Connected to Elasticsearch successfully for both ingredients, tools, recipes and products!")
 	return nil
 }
 
@@ -102,4 +122,9 @@ func GetESClientTools() *elasticsearch.Client {
 // GetESClientRecipes returns the Elasticsearch client for recipes
 func GetESClientRecipes() *elasticsearch.Client {
 	return ESClientRecipes
+}
+
+// GetESClientProducts returns the Elasticsearch client for products
+func GetESClientProducts() *elasticsearch.Client {
+	return ESClientProducts
 }

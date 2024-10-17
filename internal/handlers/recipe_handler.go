@@ -492,3 +492,185 @@ func ESSearchRecipesByIngredient(db *pgxpool.Pool) gin.HandlerFunc {
 		})
 	}
 }
+
+// func UpdateRecipe(db *pgxpool.Pool) gin.HandlerFunc {
+// 	return func(c *gin.Context) {
+// 		recipeID, err := strconv.Atoi(c.Param("id"))
+// 		if err != nil {
+// 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid recipe ID"})
+// 			return
+// 		}
+
+// 		var req RecipeRequest
+// 		if err := c.ShouldBindJSON(&req); err != nil {
+// 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+// 			return
+// 		}
+
+// 		tx, err := db.Begin(c)
+// 		if err != nil {
+// 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start transaction"})
+// 			return
+// 		}
+// 		defer tx.Rollback(c)
+
+// 		// Update recipe
+// 		_, err = tx.Exec(c, `
+//             UPDATE recipes SET
+//             name = $1, description = $2, difficulty = $3, prep_time = $4,
+//             cook_time = $5, servings = $6, category = $7, sub_categories = $8,
+//             image_urls = $9, is_public = $10
+//             WHERE id = $11
+//         `, req.RecipeData.Name, req.RecipeData.Description, req.RecipeData.Difficulty,
+// 			req.RecipeData.PrepTime, req.RecipeData.CookTime, req.RecipeData.Servings,
+// 			req.RecipeData.Category, req.RecipeData.SubCategories, req.RecipeData.ImageURLs,
+// 			req.RecipeData.IsPublic, recipeID)
+// 		if err != nil {
+// 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update recipe"})
+// 			return
+// 		}
+
+// 		// Update ingredients, tools, and steps
+// 		if err := updateRecipeIngredients(c, tx, recipeID, req.RecipeIngredientData); err != nil {
+// 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update recipe ingredients"})
+// 			return
+// 		}
+// 		if err := updateRecipeTools(c, tx, recipeID, req.RecipeToolData); err != nil {
+// 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update recipe tools"})
+// 			return
+// 		}
+// 		if err := updateSteps(c, tx, recipeID, req.StepsData); err != nil {
+// 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update recipe steps"})
+// 			return
+// 		}
+
+// 		if err := tx.Commit(c); err != nil {
+// 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit transaction"})
+// 			return
+// 		}
+
+// 		// Update Elasticsearch index
+// 		if err := indexRecipeInElasticsearch(c, db, config.GetESClientRecipes(), recipeID, req); err != nil {
+// 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update recipe in Elasticsearch"})
+// 			return
+// 		}
+
+// 		c.JSON(http.StatusOK, gin.H{"message": "Recipe updated successfully"})
+// 	}
+// }
+
+// func DeleteRecipe(db *pgxpool.Pool) gin.HandlerFunc {
+// 	return func(c *gin.Context) {
+// 		recipeID, err := strconv.Atoi(c.Param("id"))
+// 		if err != nil {
+// 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid recipe ID"})
+// 			return
+// 		}
+
+// 		tx, err := db.Begin(c)
+// 		if err != nil {
+// 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start transaction"})
+// 			return
+// 		}
+// 		defer tx.Rollback(c)
+
+// 		// Delete related data
+// 		_, err = tx.Exec(c, "DELETE FROM recipe_ingredient WHERE recipe_id = $1", recipeID)
+// 		if err != nil {
+// 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete recipe ingredients"})
+// 			return
+// 		}
+// 		_, err = tx.Exec(c, "DELETE FROM recipe_tool WHERE recipe_id = $1", recipeID)
+// 		if err != nil {
+// 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete recipe tools"})
+// 			return
+// 		}
+// 		_, err = tx.Exec(c, "DELETE FROM steps WHERE recipe_id = $1", recipeID)
+// 		if err != nil {
+// 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete recipe steps"})
+// 			return
+// 		}
+
+// 		// Delete the recipe
+// 		_, err = tx.Exec(c, "DELETE FROM recipes WHERE id = $1", recipeID)
+// 		if err != nil {
+// 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete recipe"})
+// 			return
+// 		}
+
+// 		if err := tx.Commit(c); err != nil {
+// 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit transaction"})
+// 			return
+// 		}
+
+// 		// Remove from Elasticsearch
+// 		esClient := config.GetESClientRecipes()
+// 		_, err = esClient.Delete("recipes", strconv.Itoa(recipeID))
+// 		if err != nil {
+// 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete recipe from Elasticsearch"})
+// 			return
+// 		}
+
+// 		c.JSON(http.StatusOK, gin.H{"message": "Recipe deleted successfully"})
+// 	}
+// }
+
+// func ChangeOwnerRecipe(db *pgxpool.Pool) gin.HandlerFunc {
+// 	return func(c *gin.Context) {
+// 		var req struct {
+// 			RecipeID   int `json:"recipe_id" binding:"required"`
+// 			NewOwnerID int `json:"new_owner_id" binding:"required"`
+// 		}
+// 		if err := c.ShouldBindJSON(&req); err != nil {
+// 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+// 			return
+// 		}
+
+// 		_, err := db.Exec(c, "UPDATE recipes SET user_id = $1 WHERE id = $2", req.NewOwnerID, req.RecipeID)
+// 		if err != nil {
+// 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to change recipe owner"})
+// 			return
+// 		}
+
+// 		// Update Elasticsearch
+// 		esClient := config.GetESClientRecipes()
+// 		_, err = esClient.Update("recipes", strconv.Itoa(req.RecipeID),
+// 			strings.NewReader(`{"doc": {"user_id": `+strconv.Itoa(req.NewOwnerID)+`}}`))
+// 		if err != nil {
+// 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update recipe owner in Elasticsearch"})
+// 			return
+// 		}
+
+// 		c.JSON(http.StatusOK, gin.H{"message": "Recipe owner changed successfully"})
+// 	}
+// }
+
+// func ChangeStatusRecipe(db *pgxpool.Pool) gin.HandlerFunc {
+// 	return func(c *gin.Context) {
+// 		var req struct {
+// 			RecipeID int  `json:"recipe_id" binding:"required"`
+// 			IsPublic bool `json:"is_public" binding:"required"`
+// 		}
+// 		if err := c.ShouldBindJSON(&req); err != nil {
+// 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+// 			return
+// 		}
+
+// 		_, err := db.Exec(c, "UPDATE recipes SET is_public = $1 WHERE id = $2", req.IsPublic, req.RecipeID)
+// 		if err != nil {
+// 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to change recipe status"})
+// 			return
+// 		}
+
+// 		// Update Elasticsearch
+// 		esClient := config.GetESClientRecipes()
+// 		_, err = esClient.Update("recipes", strconv.Itoa(req.RecipeID),
+// 			strings.NewReader(`{"doc": {"is_public": `+strconv.FormatBool(req.IsPublic)+`}}`))
+// 		if err != nil {
+// 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update recipe status in Elasticsearch"})
+// 			return
+// 		}
+
+// 		c.JSON(http.StatusOK, gin.H{"message": "Recipe status changed successfully"})
+// 	}
+// }
