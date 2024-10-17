@@ -17,6 +17,26 @@ CREATE TABLE pantries (
     image_urls TEXT[]
 );
 
+-- Create ingredients table
+CREATE TABLE ingredients (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    category VARCHAR(255) NOT NULL,
+    sub_categories TEXT[],
+    description TEXT,
+    image_urls TEXT[]
+);
+
+-- Create tools table
+CREATE TABLE tools (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    category VARCHAR(255) NOT NULL,
+    sub_categories TEXT[],
+    description TEXT,
+    image_urls TEXT[]
+);
+
 -- Create products table
 CREATE TABLE products (
     id SERIAL PRIMARY KEY,

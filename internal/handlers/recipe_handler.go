@@ -115,7 +115,7 @@ func indexRecipeInElasticsearch(c *gin.Context, db *pgxpool.Pool, esClient *elas
 	// Process recipe ingredients
 	ingredients := make([]map[string]interface{}, 0)
 	for _, ing := range req.RecipeIngredientData {
-		pantry, err := GetPantryByID(db, ing.PantryID)(c)
+		pantry, err := GetIngredientByID(db, ing.PantryID)(c)
 		if err != nil {
 			return err
 		}
@@ -130,7 +130,7 @@ func indexRecipeInElasticsearch(c *gin.Context, db *pgxpool.Pool, esClient *elas
 	// Process recipe tools
 	tools := make([]map[string]interface{}, 0)
 	for _, tool := range req.RecipeToolData {
-		pantry, err := GetPantryByID(db, tool.PantryID)(c)
+		pantry, err := GetToolByID(db, tool.PantryID)(c)
 		if err != nil {
 			return err
 		}

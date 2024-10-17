@@ -10,8 +10,9 @@ import (
 )
 
 var (
-	ESClientPantries *elasticsearch.Client
-	ESClientRecipes  *elasticsearch.Client
+	ESClientRecipes     *elasticsearch.Client
+	ESClientIngredients *elasticsearch.Client
+	ESClientTools       *elasticsearch.Client
 )
 
 // InitElasticsearch initializes the Elasticsearch clients
@@ -21,13 +22,20 @@ func InitElasticsearch() error {
 
 	// Get Elasticsearch configuration from environment variables
 	elasticEndpoint := os.Getenv("ELASTIC_SEARCH_ENDPOINT")
-	elasticAPIKeyPantries := os.Getenv("ELASTIC_SEARCH_API_KEY_PANTRIES")
 	elasticAPIKeyRecipes := os.Getenv("ELASTIC_SEARCH_API_KEY_RECIPES")
+	elasticAPIKeyIngredients := os.Getenv("ELASTIC_SEARCH_API_KEY_INGREDIENTS")
+	elasticAPIKeyTools := os.Getenv("ELASTIC_SEARCH_API_KEY_TOOLS")
 
-	// Create the Elasticsearch client configuration for pantries
-	cfgPantries := elasticsearch.Config{
+	// Create the Elasticsearch client configuration for ingredients
+	cfgIngredients := elasticsearch.Config{
 		Addresses: []string{elasticEndpoint},
-		APIKey:    elasticAPIKeyPantries,
+		APIKey:    elasticAPIKeyIngredients,
+	}
+
+	// Create the Elasticsearch client configuration for tools
+	cfgTools := elasticsearch.Config{
+		Addresses: []string{elasticEndpoint},
+		APIKey:    elasticAPIKeyTools,
 	}
 
 	// Create the Elasticsearch client configuration for recipes
@@ -37,9 +45,15 @@ func InitElasticsearch() error {
 	}
 
 	// Create the Elasticsearch clients
-	clientPantries, err := elasticsearch.NewClient(cfgPantries)
+	clientIngredients, err := elasticsearch.NewClient(cfgIngredients)
 	if err != nil {
-		return fmt.Errorf("error creating the Elasticsearch client for pantries: %w", err)
+		return fmt.Errorf("error creating the Elasticsearch client for ingredients: %w", err)
+	}
+
+	// Create the Elasticsearch client for tools
+	clientTools, err := elasticsearch.NewClient(cfgTools)
+	if err != nil {
+		return fmt.Errorf("error creating the Elasticsearch client for tools: %w", err)
 	}
 
 	clientRecipes, err := elasticsearch.NewClient(cfgRecipes)
@@ -48,27 +62,41 @@ func InitElasticsearch() error {
 	}
 
 	// Check if the connections are successful
-	resPantries, err := clientPantries.Info()
+	resIngredients, err := clientIngredients.Info()
 	if err != nil {
-		return fmt.Errorf("error connecting to Elasticsearch for pantries: %w", err)
+		return fmt.Errorf("error connecting to Elasticsearch for ingredients: %w", err)
 	}
-	defer resPantries.Body.Close()
+	defer resIngredients.Body.Close()
 
+	// Check if the connections are successful
+	resTools, err := clientTools.Info()
+	if err != nil {
+		return fmt.Errorf("error connecting to Elasticsearch for tools: %w", err)
+	}
+	defer resTools.Body.Close()
+
+	// Check if the connections are successful
 	resRecipes, err := clientRecipes.Info()
 	if err != nil {
 		return fmt.Errorf("error connecting to Elasticsearch for recipes: %w", err)
 	}
 	defer resRecipes.Body.Close()
 
-	ESClientPantries = clientPantries
+	ESClientIngredients = clientIngredients
+	ESClientTools = clientTools
 	ESClientRecipes = clientRecipes
-	log.Println("Connected to Elasticsearch successfully for both pantries and recipes!")
+	log.Println("Connected to Elasticsearch successfully for both ingredients, tools and recipes!")
 	return nil
 }
 
 // GetESClientPantries returns the Elasticsearch client for pantries
-func GetESClientPantries() *elasticsearch.Client {
-	return ESClientPantries
+func GetESClientIngredients() *elasticsearch.Client {
+	return ESClientIngredients
+}
+
+// GetESClientTools returns the Elasticsearch client for tools
+func GetESClientTools() *elasticsearch.Client {
+	return ESClientTools
 }
 
 // GetESClientRecipes returns the Elasticsearch client for recipes

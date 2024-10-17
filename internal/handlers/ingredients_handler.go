@@ -11,7 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type Pantry struct {
+type Ingredients struct {
 	ID            int      `json:"id"`
 	Name          string   `json:"name" binding:"required"`
 	Category      string   `json:"category" binding:"required"`
@@ -21,27 +21,27 @@ type Pantry struct {
 	ImageURLs     []string `json:"image_urls"`
 }
 
-func CreatePantry(db *pgxpool.Pool) gin.HandlerFunc {
+func CreateIngredient(db *pgxpool.Pool) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var pantry Pantry
-		if err := c.ShouldBindJSON(&pantry); err != nil {
+		var ingredient Ingredients
+		if err := c.ShouldBindJSON(&ingredient); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
 
 		query := `
-			INSERT INTO pantries (name, category, sub_categories, description, image_urls)
+			INSERT INTO ingredients (name, category, sub_categories, description, image_urls)
 			VALUES ($1, $2, $3, $4, $5)
 			RETURNING id
 		`
 
 		var id int
 		err := db.QueryRow(c, query,
-			pantry.Name,
-			pantry.Category,
-			pantry.SubCategories,
-			pantry.Description,
-			pantry.ImageURLs,
+			ingredient.Name,
+			ingredient.Category,
+			ingredient.SubCategories,
+			ingredient.Description,
+			ingredient.ImageURLs,
 		).Scan(&id)
 
 		if err != nil {
@@ -50,17 +50,17 @@ func CreatePantry(db *pgxpool.Pool) gin.HandlerFunc {
 		}
 
 		// Add the pantry to Elasticsearch
-		esClient := config.GetESClientPantries()
-		pantry.ID = id
-		pantryJSON, err := json.Marshal(pantry)
+		esClient := config.GetESClientIngredients()
+		ingredient.ID = id
+		ingredientJSON, err := json.Marshal(ingredient)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to marshal pantry data"})
 			return
 		}
 
 		_, err = esClient.Index(
-			"pantries",
-			bytes.NewReader(pantryJSON),
+			"ingredients",
+			bytes.NewReader(ingredientJSON),
 			esClient.Index.WithDocumentID(strconv.Itoa(id)),
 		)
 		if err != nil {
@@ -72,31 +72,31 @@ func CreatePantry(db *pgxpool.Pool) gin.HandlerFunc {
 	}
 }
 
-func CreateListPantry(db *pgxpool.Pool) gin.HandlerFunc {
+func CreateListIngredient(db *pgxpool.Pool) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var pantries []Pantry
-		if err := c.ShouldBindJSON(&pantries); err != nil {
+		var ingredients []Ingredients
+		if err := c.ShouldBindJSON(&ingredients); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
 
-		createdIDs := make([]int, 0, len(pantries))
-		esClient := config.GetESClientPantries()
+		createdIDs := make([]int, 0, len(ingredients))
+		esClient := config.GetESClientIngredients()
 
-		for _, pantry := range pantries {
+		for _, ingredient := range ingredients {
 			query := `
-				INSERT INTO pantries (name, category, sub_categories, description, image_urls)
+				INSERT INTO ingredients (name, category, sub_categories, description, image_urls)
 				VALUES ($1, $2, $3, $4, $5)
 				RETURNING id
 			`
 
 			var id int
 			err := db.QueryRow(c, query,
-				pantry.Name,
-				pantry.Category,
-				pantry.SubCategories,
-				pantry.Description,
-				pantry.ImageURLs,
+				ingredient.Name,
+				ingredient.Category,
+				ingredient.SubCategories,
+				ingredient.Description,
+				ingredient.ImageURLs,
 			).Scan(&id)
 
 			if err != nil {
@@ -107,16 +107,16 @@ func CreateListPantry(db *pgxpool.Pool) gin.HandlerFunc {
 			createdIDs = append(createdIDs, id)
 
 			// Add the pantry to Elasticsearch
-			pantry.ID = id
-			pantryJSON, err := json.Marshal(pantry)
+			ingredient.ID = id
+			ingredientJSON, err := json.Marshal(ingredient)
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to marshal pantry data", "details": err.Error()})
 				return
 			}
 
 			_, err = esClient.Index(
-				"pantries",
-				bytes.NewReader(pantryJSON),
+				"ingredients",
+				bytes.NewReader(ingredientJSON),
 				esClient.Index.WithDocumentID(strconv.Itoa(id)),
 			)
 			if err != nil {
@@ -126,39 +126,39 @@ func CreateListPantry(db *pgxpool.Pool) gin.HandlerFunc {
 		}
 
 		c.JSON(http.StatusCreated, gin.H{
-			"message": "Pantries created successfully and indexed in Elasticsearch",
+			"message": "Ingredients created successfully and indexed in Elasticsearch",
 			"ids":     createdIDs,
 		})
 	}
 }
 
-func GetPantryByID(db *pgxpool.Pool, pantryID int) func(*gin.Context) (Pantry, error) {
-	return func(c *gin.Context) (Pantry, error) {
-		var pantry Pantry
+func GetIngredientByID(db *pgxpool.Pool, ingredientID int) func(*gin.Context) (Ingredients, error) {
+	return func(c *gin.Context) (Ingredients, error) {
+		var ingredient Ingredients
 		query := `
 			SELECT id, name, category, sub_categories, description, image_urls
-			FROM pantries
+			FROM ingredients
 			WHERE id = $1
 		`
 
-		err := db.QueryRow(c, query, pantryID).Scan(
-			&pantry.ID,
-			&pantry.Name,
-			&pantry.Category,
-			&pantry.SubCategories,
-			&pantry.Description,
-			&pantry.ImageURLs,
+		err := db.QueryRow(c, query, ingredientID).Scan(
+			&ingredient.ID,
+			&ingredient.Name,
+			&ingredient.Category,
+			&ingredient.SubCategories,
+			&ingredient.Description,
+			&ingredient.ImageURLs,
 		)
 
 		if err != nil {
-			return Pantry{}, err
+			return Ingredients{}, err
 		}
 
-		return pantry, nil
+		return ingredient, nil
 	}
 }
 
-func ESSearchPantries(db *pgxpool.Pool) gin.HandlerFunc {
+func ESSearchIngredients(db *pgxpool.Pool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		name := c.Query("name")
 
@@ -167,20 +167,20 @@ func ESSearchPantries(db *pgxpool.Pool) gin.HandlerFunc {
 			return
 		}
 
-		esClient := config.GetESClientPantries()
+		esClient := config.GetESClientIngredients()
 		searchResult, err := esClient.Search(
-			esClient.Search.WithIndex("pantries"),
+			esClient.Search.WithIndex("ingredients"),
 			esClient.Search.WithBody(bytes.NewReader([]byte(`{"query": {"match": {"name": "`+name+`"}}}`))),
 		)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to search pantries in Elasticsearch"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to search ingredients in Elasticsearch"})
 			return
 		}
 
 		var result struct {
 			Hits struct {
 				Hits []struct {
-					Source Pantry `json:"_source"`
+					Source Ingredients `json:"_source"`
 				} `json:"hits"`
 			} `json:"hits"`
 		}
