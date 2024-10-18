@@ -132,6 +132,53 @@ func CreateListIngredient(db *pgxpool.Pool) gin.HandlerFunc {
 	}
 }
 
+func UpdateIngredient(db *pgxpool.Pool) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		ingredientID, err := strconv.Atoi(c.Param("id"))
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ingredient ID"})
+			return
+		}
+
+		var req Ingredients
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		query := `
+			UPDATE ingredients SET
+			name = $1, category = $2, sub_categories = $3, description = $4, image_urls = $5
+			WHERE id = $6
+		`
+		_, err = db.Exec(c, query, req.Name, req.Category, req.SubCategories, req.Description, req.ImageURLs, ingredientID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update ingredient"})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{"message": "Ingredient updated successfully"})
+	}
+}
+
+func DeleteIngredient(db *pgxpool.Pool) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		ingredientID, err := strconv.Atoi(c.Param("id"))
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ingredient ID"})
+			return
+		}
+
+		_, err = db.Exec(c, "DELETE FROM ingredients WHERE id = $1", ingredientID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete ingredient"})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{"message": "Ingredient deleted successfully"})
+	}
+}
+
 func GetIngredientByID(db *pgxpool.Pool, ingredientID int) func(*gin.Context) (Ingredients, error) {
 	return func(c *gin.Context) (Ingredients, error) {
 		var ingredient Ingredients

@@ -132,6 +132,53 @@ func CreateListTool(db *pgxpool.Pool) gin.HandlerFunc {
 	}
 }
 
+func UpdateTool(db *pgxpool.Pool) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		toolID, err := strconv.Atoi(c.Param("id"))
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid tool ID"})
+			return
+		}
+
+		var req Tools
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		query := `
+			UPDATE tools SET
+			name = $1, category = $2, sub_categories = $3, description = $4, image_urls = $5
+			WHERE id = $6
+		`
+		_, err = db.Exec(c, query, req.Name, req.Category, req.SubCategories, req.Description, req.ImageURLs, toolID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update tool"})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{"message": "Tool updated successfully"})
+	}
+}
+
+func DeleteTool(db *pgxpool.Pool) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		toolID, err := strconv.Atoi(c.Param("id"))
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid tool ID"})
+			return
+		}
+
+		_, err = db.Exec(c, "DELETE FROM tools WHERE id = $1", toolID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete tool"})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{"message": "Tool deleted successfully"})
+	}
+}
+
 func GetToolByID(db *pgxpool.Pool, toolID int) func(*gin.Context) (Tools, error) {
 	return func(c *gin.Context) (Tools, error) {
 		var tool Tools
@@ -163,24 +210,30 @@ func ESSearchTools(db *pgxpool.Pool) gin.HandlerFunc {
 		name := c.Query("name")
 
 		if name == "" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Search name is required"})
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Search name is required!!!"})
 			return
 		}
 
-		esClient := config.GetESClientIngredients()
+		esClient := config.GetESClientTools() // Change this to use the correct ES client for tools
 		searchResult, err := esClient.Search(
 			esClient.Search.WithIndex("tools"),
-			esClient.Search.WithBody(bytes.NewReader([]byte(`{"query": {"match": {"name": "`+name+`"}}}`))),
+			esClient.Search.WithBody(bytes.NewReader([]byte(`{
+				"query": {
+					"match": {
+						"name": "`+name+`"
+					}
+				}
+			}`))),
 		)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to search ingredients in Elasticsearch"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to search tools in Elasticsearch"})
 			return
 		}
 
 		var result struct {
 			Hits struct {
 				Hits []struct {
-					Source Tools `json:"_source"`
+					Source Tools `json:"_source"` // Change this to use the Tools struct
 				} `json:"hits"`
 			} `json:"hits"`
 		}

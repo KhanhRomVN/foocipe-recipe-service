@@ -7,16 +7,6 @@ CREATE TABLE categories (
     level INTEGER NOT NULL
 );
 
--- Create pantries table
-CREATE TABLE pantries (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(255) NOT NULL,
-    category VARCHAR(255) NOT NULL,
-    sub_categories TEXT[],
-    description TEXT,
-    image_urls TEXT[]
-);
-
 -- Create ingredients table
 CREATE TABLE ingredients (
     id SERIAL PRIMARY KEY,
@@ -41,7 +31,9 @@ CREATE TABLE tools (
 CREATE TABLE products (
     id SERIAL PRIMARY KEY,
     seller_id INTEGER NOT NULL,
-    pantry_id INTEGER NOT NULL,
+    ingredient_id INTEGER NOT NULL,
+    tool_id INTEGER NOT NULL,
+    recipe_id INTEGER NOT NULL,
     name VARCHAR(255) NOT NULL,
     description TEXT,
     price DECIMAL(10, 2) NOT NULL,
