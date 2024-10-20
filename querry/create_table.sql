@@ -91,3 +91,10 @@ CREATE TABLE recipe_rating (
     comment TEXT,
     CONSTRAINT rating_check CHECK (rating >= 0 AND rating <= 5)
 );
+
+CREATE TABLE carts (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    product_id INTEGER NOT NULL,
+    quantity INTEGER NOT NULL
+);

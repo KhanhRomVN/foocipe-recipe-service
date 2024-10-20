@@ -30,10 +30,10 @@ func SetupRoutes(r *gin.Engine, db *pgxpool.Pool) {
 func setupCartRoutes(rg *gin.RouterGroup, db *pgxpool.Pool) {
 	carts := rg.Group("/carts")
 	{
-		carts.POST("", handlers.CreateCart(db))
-		carts.GET("/:id", handlers.GetCartsByUserID(db))
-		carts.PUT("/:id", handlers.UpdateQuantityCart(db))
-		carts.DELETE("/:id", handlers.DeleteCartItem(db))
+		carts.POST("/add/:product_id/:quantity", handlers.AddProductToCart(db))
+		carts.GET("/user", handlers.GetCartsByUserID(db))
+		carts.PUT("/update/:cart_id/:quantity", handlers.UpdateQuantityCart(db))
+		carts.DELETE("/delete/:cart_id", handlers.DeleteCartItem(db))
 		carts.DELETE("/clear", handlers.DeleteCarts(db))
 	}
 }

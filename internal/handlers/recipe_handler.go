@@ -360,7 +360,7 @@ func GetRecipeByID(db *pgxpool.Pool) gin.HandlerFunc {
 
 		for rows.Next() {
 			var ingredient RecipeIngredientData
-			if err := rows.Scan(&ingredient.IngredientID, &ingredient.Quantity, &ingredient.IngredientName); err != nil {
+			if err := rows.Scan(&ingredient.IngredientID, &ingredient.Quantity, &ingredient.IngredientName, &ingredient.Unit); err != nil { // Thêm &ingredient.Unit
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to scan recipe ingredients"})
 				return
 			}
@@ -369,7 +369,7 @@ func GetRecipeByID(db *pgxpool.Pool) gin.HandlerFunc {
 
 		// Fetch recipe tools
 		rows, err = db.Query(c, `
-			SELECT rt.tool_id, rt.quantity, t.name
+			SELECT rt.tool_id, rt.quantity, t.name, t.unit
 			FROM recipe_tool rt
 			JOIN tools t ON rt.tool_id = t.id
 			WHERE rt.recipe_id = $1
@@ -382,29 +382,7 @@ func GetRecipeByID(db *pgxpool.Pool) gin.HandlerFunc {
 
 		for rows.Next() {
 			var tool RecipeToolData
-			if err := rows.Scan(&tool.ToolID, &tool.Quantity, &tool.ToolName); err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to scan recipe tools"})
-				return
-			}
-			recipe.RecipeToolData = append(recipe.RecipeToolData, tool)
-		}
-
-		// Fetch recipe tools
-		rows, err = db.Query(c, `
-			SELECT rt.tool_id, rt.quantity, t.name
-			FROM recipe_tool rt
-			JOIN tools t ON rt.tool_id = t.id
-			WHERE rt.recipe_id = $1
-		`, recipeID)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch recipe tools"})
-			return
-		}
-		defer rows.Close()
-
-		for rows.Next() {
-			var tool RecipeToolData
-			if err := rows.Scan(&tool.ToolID, &tool.Quantity, &tool.ToolName); err != nil {
+			if err := rows.Scan(&tool.ToolID, &tool.Quantity, &tool.ToolName, &tool.Unit); err != nil { // Thêm &tool.Unit
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to scan recipe tools"})
 				return
 			}
