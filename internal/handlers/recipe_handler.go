@@ -219,6 +219,57 @@ func GetListRecipe(db *pgxpool.Pool) gin.HandlerFunc {
 	}
 }
 
+func GetNewestRecipes(db *pgxpool.Pool) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		rows, err := db.Query(c, `
+			SELECT id, name, difficulty, cook_time, image_urls
+			FROM recipes
+			ORDER BY id DESC
+			LIMIT 10
+		`)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch newest recipes"})
+			return
+		}
+		defer rows.Close()
+
+		var recipes []gin.H
+		for rows.Next() {
+			var id int
+			var name, difficulty string
+			var cookTime int
+			var imageURLs []string
+			if err := rows.Scan(&id, &name, &difficulty, &cookTime, &imageURLs); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to scan recipe data"})
+				return
+			}
+
+			// Get average rating
+			avgRating, err := GetAverageRating(db, id)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get average rating"})
+				return
+			}
+
+			recipes = append(recipes, gin.H{
+				"id":             id,
+				"name":           name,
+				"difficulty":     difficulty,
+				"cook_time":      cookTime,
+				"image_urls":     imageURLs,
+				"average_rating": avgRating,
+			})
+		}
+
+		if err := rows.Err(); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error iterating over recipes"})
+			return
+		}
+
+		c.JSON(http.StatusOK, recipes)
+	}
+}
+
 func GetMyRecipe(db *pgxpool.Pool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		userID, exists := c.Get("user_id")
@@ -276,6 +327,7 @@ func GetRecipeByID(db *pgxpool.Pool) gin.HandlerFunc {
 			return
 		}
 
+		// Fetch Recipe
 		var recipe RecipeRequest
 		err = db.QueryRow(c, `
 			SELECT name, description, difficulty, prep_time, cook_time, servings, category, sub_categories, image_urls, is_public
@@ -295,7 +347,7 @@ func GetRecipeByID(db *pgxpool.Pool) gin.HandlerFunc {
 
 		// Fetch recipe ingredients
 		rows, err := db.Query(c, `
-			SELECT ri.ingredient_id, ri.quantity, i.name
+			SELECT ri.ingredient_id, ri.quantity, i.name, i.unit
 			FROM recipe_ingredient ri
 			JOIN ingredients i ON ri.ingredient_id = i.id
 			WHERE ri.recipe_id = $1
@@ -337,7 +389,7 @@ func GetRecipeByID(db *pgxpool.Pool) gin.HandlerFunc {
 			recipe.RecipeToolData = append(recipe.RecipeToolData, tool)
 		}
 
-		// Fetch recipe steps
+		// Fetch recipe tools
 		rows, err = db.Query(c, `
 			SELECT rt.tool_id, rt.quantity, t.name
 			FROM recipe_tool rt

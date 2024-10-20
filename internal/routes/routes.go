@@ -34,7 +34,7 @@ func setupCartRoutes(rg *gin.RouterGroup, db *pgxpool.Pool) {
 		carts.GET("/:id", handlers.GetCartsByUserID(db))
 		carts.PUT("/:id", handlers.UpdateQuantityCart(db))
 		carts.DELETE("/:id", handlers.DeleteCartItem(db))
-		carts.DELETE("/:id", handlers.DeleteCarts(db))
+		carts.DELETE("/clear", handlers.DeleteCarts(db))
 	}
 }
 
@@ -53,6 +53,7 @@ func setupRecipeRoutes(rg *gin.RouterGroup, db *pgxpool.Pool) {
 	{
 		recipes.POST("", handlers.CreateRecipe(db))
 		recipes.GET("/list", handlers.GetListRecipe(db))
+		recipes.GET("/newest", handlers.GetNewestRecipes(db))
 		recipes.GET("/my", handlers.GetMyRecipe(db))
 		recipes.GET("/:id", handlers.GetRecipeByID(db))
 		recipes.PUT("/:id", handlers.UpdateRecipe(db))
@@ -75,7 +76,8 @@ func setupIngredientRoutes(rg *gin.RouterGroup, db *pgxpool.Pool) {
 		ingredients.POST("", handlers.CreateIngredient(db))
 		ingredients.POST("/list", handlers.CreateListIngredient(db))
 		ingredients.PUT("/:id", handlers.UpdateIngredient(db))
-		ingredients.DELETE("/:id", handlers.DeleteIngredient(db))
+		// ingredients.DELETE("/:id", handlers.DeleteIngredient(db))
+		ingredients.GET("/:id", handlers.GINGetIngredientByID(db))
 	}
 }
 
@@ -86,6 +88,7 @@ func setupToolRoutes(rg *gin.RouterGroup, db *pgxpool.Pool) {
 		tools.POST("/list", handlers.CreateListTool(db))
 		tools.PUT("/:id", handlers.UpdateTool(db))
 		tools.DELETE("/:id", handlers.DeleteTool(db))
+		tools.GET("/:id", handlers.GINGetToolByID(db))
 	}
 }
 
@@ -102,7 +105,8 @@ func setupProductRoutes(rg *gin.RouterGroup, db *pgxpool.Pool) {
 		products.GET("/recipe/:id", handlers.GetProductByRecipeID(db))
 		products.GET("/tool/:id", handlers.GetProductByToolID(db))
 		products.GET("/ingredient/:id", handlers.GetProductByIngredientID(db))
-		products.GET("/seller/:id", handlers.GetProductBySellerID(db))
+		products.GET("/seller", handlers.GetProductBySellerID(db))
+		products.GET("/newest", handlers.GetNewestProduct(db))
 	}
 }
 

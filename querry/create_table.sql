@@ -13,8 +13,9 @@ CREATE TABLE ingredients (
     name VARCHAR(255) NOT NULL,
     category VARCHAR(255) NOT NULL,
     sub_categories TEXT[],
-    description TEXT,
-    image_urls TEXT[]
+    description TEXT NOT NULL,
+    image_urls TEXT[],
+    unit VARCHAR(255) NOT NULL
 );
 
 -- Create tools table
@@ -23,22 +24,24 @@ CREATE TABLE tools (
     name VARCHAR(255) NOT NULL,
     category VARCHAR(255) NOT NULL,
     sub_categories TEXT[],
-    description TEXT,
-    image_urls TEXT[]
+    description TEXT NOT NULL,
+    image_urls TEXT[],
+    unit VARCHAR(255) NOT NULL
 );
 
 -- Create products table
 CREATE TABLE products (
     id SERIAL PRIMARY KEY,
     seller_id INTEGER NOT NULL,
-    ingredient_id INTEGER NOT NULL,
-    tool_id INTEGER NOT NULL,
-    recipe_id INTEGER NOT NULL,
-    name VARCHAR(255) NOT NULL,
+    ingredient_id INTEGER,
+    tool_id INTEGER,
+    recipe_id INTEGER,
+    title VARCHAR(255) NOT NULL,
     description TEXT,
     price DECIMAL(10, 2) NOT NULL,
     stock INTEGER NOT NULL,
-    image_urls TEXT[]
+    image_urls TEXT[],
+    is_active BOOLEAN NOT NULL
 );
 
 CREATE TABLE recipes (

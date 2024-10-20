@@ -13,7 +13,8 @@ import (
 type RecipeIngredientData struct {
 	IngredientID   int    `json:"ingredient_id"`
 	Quantity       int    `json:"quantity"`
-	IngredientName string `json:"ingredient_name,omitempty"`
+	IngredientName string `json:"ingredient_name"`
+	Unit           string `json:"unit"`
 }
 
 func insertRecipeIngredients(ctx context.Context, tx pgx.Tx, recipeID int, ingredients []RecipeIngredientData) error {

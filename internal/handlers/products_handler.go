@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"foocipe-recipe-service/internal/config"
 	"net/http"
@@ -27,6 +28,19 @@ type Products struct {
 
 func CreateProductAsRecipe(db *pgxpool.Pool) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		userID, exists := c.Get("user_id")
+		if !exists {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+			return
+		}
+
+		// Kiểm tra kiểu dữ liệu của sellerID
+		sellerID, ok := userID.(int)
+		if !ok {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid user ID type"})
+			return
+		}
+
 		var product Products
 		if err := c.ShouldBindJSON(&product); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -44,16 +58,16 @@ func CreateProductAsRecipe(db *pgxpool.Pool) gin.HandlerFunc {
                   VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`
 
 		var id int
-		err := db.QueryRow(c, query, product.SellerID, product.RecipeID, product.Title, product.Description,
+		err := db.QueryRow(c, query, sellerID, product.RecipeID, product.Title, product.Description,
 			product.Price, product.Stock, product.ImageURLs, product.IsActive).Scan(&id)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create product"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create product: " + err.Error()})
 			return
 		}
 
 		// Index the product in Elasticsearch
 		if err := indexProductInElasticsearch(c, id, product); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to index product in Elasticsearch"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to index product in Elasticsearch: " + err.Error()})
 			return
 		}
 
@@ -63,6 +77,14 @@ func CreateProductAsRecipe(db *pgxpool.Pool) gin.HandlerFunc {
 
 func CreateProductAsTool(db *pgxpool.Pool) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		userID, exists := c.Get("user_id")
+		if !exists {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+			return
+		}
+
+		sellerID := userID.(int)
+
 		var product Products
 		if err := c.ShouldBindJSON(&product); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -80,7 +102,7 @@ func CreateProductAsTool(db *pgxpool.Pool) gin.HandlerFunc {
                   VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`
 
 		var id int
-		err := db.QueryRow(c, query, product.SellerID, product.ToolID, product.Title, product.Description,
+		err := db.QueryRow(c, query, sellerID, product.ToolID, product.Title, product.Description,
 			product.Price, product.Stock, product.ImageURLs, product.IsActive).Scan(&id)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create product"})
@@ -99,6 +121,14 @@ func CreateProductAsTool(db *pgxpool.Pool) gin.HandlerFunc {
 
 func CreateProductAsIngredient(db *pgxpool.Pool) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		userID, exists := c.Get("user_id")
+		if !exists {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+			return
+		}
+
+		sellerID := userID
+
 		var product Products
 		if err := c.ShouldBindJSON(&product); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -116,7 +146,7 @@ func CreateProductAsIngredient(db *pgxpool.Pool) gin.HandlerFunc {
                   VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`
 
 		var id int
-		err := db.QueryRow(c, query, product.SellerID, product.IngredientID, product.Title, product.Description,
+		err := db.QueryRow(c, query, sellerID, product.IngredientID, product.Title, product.Description,
 			product.Price, product.Stock, product.ImageURLs, product.IsActive).Scan(&id)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create product"})
@@ -186,9 +216,35 @@ func DeleteProduct(db *pgxpool.Pool) gin.HandlerFunc {
 func GetProductByID(db *pgxpool.Pool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
-		var product Products
-		query := `SELECT * FROM products WHERE id = $1`
-		err := db.QueryRow(c, query, id).Scan(&product.ID, &product.SellerID, &product.RecipeID, &product.ToolID, &product.IngredientID, &product.Title, &product.Description, &product.Price, &product.Stock, &product.ImageURLs, &product.IsActive)
+
+		var product struct {
+			ID           int64    `json:"id"`
+			SellerID     int64    `json:"seller_id"`
+			IngredientID *int64   `json:"ingredient_id"`
+			ToolID       *int64   `json:"tool_id"`
+			RecipeID     *int64   `json:"recipe_id"`
+			Title        string   `json:"title"`
+			Description  string   `json:"description"`
+			Price        float64  `json:"price"`
+			Stock        int      `json:"stock"`
+			ImageURLs    []string `json:"image_urls"`
+			IsActive     bool     `json:"is_active"`
+		}
+
+		err := db.QueryRow(context.Background(), "SELECT id, seller_id, ingredient_id, tool_id, recipe_id, title, description, price, stock, image_urls, is_active FROM products WHERE id = $1", id).Scan(
+			&product.ID,
+			&product.SellerID,
+			&product.IngredientID,
+			&product.ToolID,
+			&product.RecipeID,
+			&product.Title,
+			&product.Description,
+			&product.Price,
+			&product.Stock,
+			&product.ImageURLs,
+			&product.IsActive,
+		)
+
 		if err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Product not found"})
 			return
@@ -299,9 +355,17 @@ func GetProductByIngredientID(db *pgxpool.Pool) gin.HandlerFunc {
 
 func GetProductBySellerID(db *pgxpool.Pool) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		sellerID := c.Param("id")
+		userID, exists := c.Get("user_id")
+		if !exists {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+			return
+		}
+
+		sellerID := userID.(int)
+
+		// Truy vấn để lấy danh sách sản phẩm theo seller_id
 		var products []Products
-		query := `SELECT * FROM products WHERE seller_id = $1`
+		query := `SELECT id, seller_id, title, description, price, stock, image_urls, is_active FROM products WHERE seller_id = $1`
 		rows, err := db.Query(c, query, sellerID)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve products"})
@@ -311,7 +375,40 @@ func GetProductBySellerID(db *pgxpool.Pool) gin.HandlerFunc {
 
 		for rows.Next() {
 			var product Products
-			if err := rows.Scan(&product.ID, &product.SellerID, &product.RecipeID, &product.ToolID, &product.IngredientID, &product.Title, &product.Description, &product.Price, &product.Stock, &product.ImageURLs, &product.IsActive); err != nil {
+			if err := rows.Scan(&product.ID, &product.SellerID, &product.Title, &product.Description, &product.Price, &product.Stock, &product.ImageURLs, &product.IsActive); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to scan product"})
+				return
+			}
+			products = append(products, product)
+		}
+
+		c.JSON(http.StatusOK, products)
+	}
+}
+
+func GetNewestProduct(db *pgxpool.Pool) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		userID, exists := c.Get("user_id")
+		if !exists {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+			return
+		}
+
+		sellerID := userID.(int)
+
+		// Truy vấn để lấy danh sách sản phẩm theo seller_id
+		var products []Products
+		query := `SELECT id, seller_id, title, description, price, stock, image_urls, is_active FROM products WHERE seller_id = $1`
+		rows, err := db.Query(c, query, sellerID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve products"})
+			return
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var product Products
+			if err := rows.Scan(&product.ID, &product.SellerID, &product.Title, &product.Description, &product.Price, &product.Stock, &product.ImageURLs, &product.IsActive); err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to scan product"})
 				return
 			}

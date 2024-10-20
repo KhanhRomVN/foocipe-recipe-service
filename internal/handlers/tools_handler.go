@@ -30,8 +30,8 @@ func CreateTool(db *pgxpool.Pool) gin.HandlerFunc {
 		}
 
 		query := `
-            INSERT INTO tools (name, category, sub_categories, description, image_urls)
-            VALUES ($1, $2, $3, $4, $5)
+            INSERT INTO tools (name, category, sub_categories, description, image_urls, unit)
+            VALUES ($1, $2, $3, $4, $5, $6)
             RETURNING id
         `
 
@@ -42,6 +42,7 @@ func CreateTool(db *pgxpool.Pool) gin.HandlerFunc {
 			tool.SubCategories,
 			tool.Description,
 			tool.ImageURLs,
+			tool.Unit,
 		).Scan(&id)
 
 		if err != nil {
@@ -85,8 +86,8 @@ func CreateListTool(db *pgxpool.Pool) gin.HandlerFunc {
 
 		for _, tool := range tools {
 			query := `
-				INSERT INTO tools (name, category, sub_categories, description, image_urls)
-				VALUES ($1, $2, $3, $4, $5)
+				INSERT INTO tools (name, category, sub_categories, description, image_urls, unit)
+				VALUES ($1, $2, $3, $4, $5, $6)
 				RETURNING id
 			`
 
@@ -97,6 +98,7 @@ func CreateListTool(db *pgxpool.Pool) gin.HandlerFunc {
 				tool.SubCategories,
 				tool.Description,
 				tool.ImageURLs,
+				tool.Unit,
 			).Scan(&id)
 
 			if err != nil {
@@ -148,10 +150,10 @@ func UpdateTool(db *pgxpool.Pool) gin.HandlerFunc {
 
 		query := `
 			UPDATE tools SET
-			name = $1, category = $2, sub_categories = $3, description = $4, image_urls = $5
-			WHERE id = $6
+			name = $1, category = $2, sub_categories = $3, description = $4, image_urls = $5, unit = $6
+			WHERE id = $7
 		`
-		_, err = db.Exec(c, query, req.Name, req.Category, req.SubCategories, req.Description, req.ImageURLs, toolID)
+		_, err = db.Exec(c, query, req.Name, req.Category, req.SubCategories, req.Description, req.ImageURLs, req.Unit, toolID)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update tool"})
 			return
@@ -183,7 +185,7 @@ func GetToolByID(db *pgxpool.Pool, toolID int) func(*gin.Context) (Tools, error)
 	return func(c *gin.Context) (Tools, error) {
 		var tool Tools
 		query := `
-			SELECT id, name, category, sub_categories, description, image_urls
+			SELECT id, name, category, sub_categories, description, image_urls, unit
 			FROM tools
 			WHERE id = $1
 		`
@@ -195,6 +197,7 @@ func GetToolByID(db *pgxpool.Pool, toolID int) func(*gin.Context) (Tools, error)
 			&tool.SubCategories,
 			&tool.Description,
 			&tool.ImageURLs,
+			&tool.Unit,
 		)
 
 		if err != nil {
@@ -202,6 +205,27 @@ func GetToolByID(db *pgxpool.Pool, toolID int) func(*gin.Context) (Tools, error)
 		}
 
 		return tool, nil
+	}
+}
+
+func GINGetToolByID(db *pgxpool.Pool) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		toolID, err := strconv.Atoi(c.Param("id"))
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid tool ID"})
+			return
+		}
+
+		var tool Tools
+		query := `SELECT id, name, category, sub_categories, description, image_urls, unit FROM tools WHERE id = $1`
+		err = db.QueryRow(c, query, toolID).Scan(&tool.ID, &tool.Name, &tool.Category, &tool.SubCategories, &tool.Description, &tool.ImageURLs, &tool.Unit)
+
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Tool not found"})
+			return
+		}
+
+		c.JSON(http.StatusOK, tool)
 	}
 }
 

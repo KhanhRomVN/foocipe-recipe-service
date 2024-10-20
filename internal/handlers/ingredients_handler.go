@@ -16,9 +16,9 @@ type Ingredients struct {
 	Name          string   `json:"name" binding:"required"`
 	Category      string   `json:"category" binding:"required"`
 	SubCategories []string `json:"sub_categories"`
-	Description   string   `json:"description"`
-	Unit          string   `json:"unit"`
+	Description   string   `json:"description" binding:"required"`
 	ImageURLs     []string `json:"image_urls"`
+	Unit          string   `json:"unit" binding:"required"`
 }
 
 func CreateIngredient(db *pgxpool.Pool) gin.HandlerFunc {
@@ -29,12 +29,12 @@ func CreateIngredient(db *pgxpool.Pool) gin.HandlerFunc {
 			return
 		}
 
+		// Add the ingredient to PostgreSQL
 		query := `
-			INSERT INTO ingredients (name, category, sub_categories, description, image_urls)
-			VALUES ($1, $2, $3, $4, $5)
+			INSERT INTO ingredients (name, category, sub_categories, description, image_urls, unit)
+			VALUES ($1, $2, $3, $4, $5, $6)
 			RETURNING id
 		`
-
 		var id int
 		err := db.QueryRow(c, query,
 			ingredient.Name,
@@ -42,19 +42,20 @@ func CreateIngredient(db *pgxpool.Pool) gin.HandlerFunc {
 			ingredient.SubCategories,
 			ingredient.Description,
 			ingredient.ImageURLs,
+			ingredient.Unit,
 		).Scan(&id)
 
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create pantry"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create ingredient", "details": err.Error()})
 			return
 		}
 
-		// Add the pantry to Elasticsearch
+		// Add the ingredient to Elasticsearch
 		esClient := config.GetESClientIngredients()
 		ingredient.ID = id
 		ingredientJSON, err := json.Marshal(ingredient)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to marshal pantry data"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to marshal ingredient data"})
 			return
 		}
 
@@ -64,11 +65,11 @@ func CreateIngredient(db *pgxpool.Pool) gin.HandlerFunc {
 			esClient.Index.WithDocumentID(strconv.Itoa(id)),
 		)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to index pantry in Elasticsearch"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to index ingredient in Elasticsearch"})
 			return
 		}
 
-		c.JSON(http.StatusCreated, gin.H{"id": id, "message": "Pantry created successfully and indexed in Elasticsearch"})
+		c.JSON(http.StatusCreated, gin.H{"id": id, "message": "Ingredient created successfully and indexed in Elasticsearch"})
 	}
 }
 
@@ -85,8 +86,8 @@ func CreateListIngredient(db *pgxpool.Pool) gin.HandlerFunc {
 
 		for _, ingredient := range ingredients {
 			query := `
-				INSERT INTO ingredients (name, category, sub_categories, description, image_urls)
-				VALUES ($1, $2, $3, $4, $5)
+				INSERT INTO ingredients (name, category, sub_categories, description, image_urls, unit)
+				VALUES ($1, $2, $3, $4, $5, $6)
 				RETURNING id
 			`
 
@@ -97,20 +98,21 @@ func CreateListIngredient(db *pgxpool.Pool) gin.HandlerFunc {
 				ingredient.SubCategories,
 				ingredient.Description,
 				ingredient.ImageURLs,
+				ingredient.Unit,
 			).Scan(&id)
 
 			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create pantry", "details": err.Error()})
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create ingredient", "details": err.Error()})
 				return
 			}
 
 			createdIDs = append(createdIDs, id)
 
-			// Add the pantry to Elasticsearch
+			// Add the ingredient to Elasticsearch
 			ingredient.ID = id
 			ingredientJSON, err := json.Marshal(ingredient)
 			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to marshal pantry data", "details": err.Error()})
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to marshal ingredient data", "details": err.Error()})
 				return
 			}
 
@@ -120,7 +122,7 @@ func CreateListIngredient(db *pgxpool.Pool) gin.HandlerFunc {
 				esClient.Index.WithDocumentID(strconv.Itoa(id)),
 			)
 			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to index pantry in Elasticsearch", "details": err.Error()})
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to index ingredient in Elasticsearch", "details": err.Error()})
 				return
 			}
 		}
@@ -148,10 +150,10 @@ func UpdateIngredient(db *pgxpool.Pool) gin.HandlerFunc {
 
 		query := `
 			UPDATE ingredients SET
-			name = $1, category = $2, sub_categories = $3, description = $4, image_urls = $5
-			WHERE id = $6
+			name = $1, category = $2, sub_categories = $3, description = $4, image_urls = $5, unit = $6
+			WHERE id = $7
 		`
-		_, err = db.Exec(c, query, req.Name, req.Category, req.SubCategories, req.Description, req.ImageURLs, ingredientID)
+		_, err = db.Exec(c, query, req.Name, req.Category, req.SubCategories, req.Description, req.ImageURLs, req.Unit, ingredientID)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update ingredient"})
 			return
@@ -161,29 +163,11 @@ func UpdateIngredient(db *pgxpool.Pool) gin.HandlerFunc {
 	}
 }
 
-func DeleteIngredient(db *pgxpool.Pool) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		ingredientID, err := strconv.Atoi(c.Param("id"))
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ingredient ID"})
-			return
-		}
-
-		_, err = db.Exec(c, "DELETE FROM ingredients WHERE id = $1", ingredientID)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete ingredient"})
-			return
-		}
-
-		c.JSON(http.StatusOK, gin.H{"message": "Ingredient deleted successfully"})
-	}
-}
-
 func GetIngredientByID(db *pgxpool.Pool, ingredientID int) func(*gin.Context) (Ingredients, error) {
 	return func(c *gin.Context) (Ingredients, error) {
 		var ingredient Ingredients
 		query := `
-			SELECT id, name, category, sub_categories, description, image_urls
+			SELECT id, name, category, sub_categories, description, image_urls, unit
 			FROM ingredients
 			WHERE id = $1
 		`
@@ -195,6 +179,7 @@ func GetIngredientByID(db *pgxpool.Pool, ingredientID int) func(*gin.Context) (I
 			&ingredient.SubCategories,
 			&ingredient.Description,
 			&ingredient.ImageURLs,
+			&ingredient.Unit,
 		)
 
 		if err != nil {
@@ -202,6 +187,27 @@ func GetIngredientByID(db *pgxpool.Pool, ingredientID int) func(*gin.Context) (I
 		}
 
 		return ingredient, nil
+	}
+}
+
+func GINGetIngredientByID(db *pgxpool.Pool) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		ingredientID, err := strconv.Atoi(c.Param("id"))
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ingredient ID"})
+			return
+		}
+
+		var ingredient Ingredients
+		query := `SELECT id, name, category, sub_categories, description, image_urls, unit FROM ingredients WHERE id = $1`
+		err = db.QueryRow(c, query, ingredientID).Scan(&ingredient.ID, &ingredient.Name, &ingredient.Category, &ingredient.SubCategories, &ingredient.Description, &ingredient.ImageURLs, &ingredient.Unit)
+
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Ingredient not found"})
+			return
+		}
+
+		c.JSON(http.StatusOK, ingredient)
 	}
 }
 
